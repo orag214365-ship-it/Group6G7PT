@@ -1,40 +1,48 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import json
-import os
+import requests
 
 app = Flask(__name__)
 CORS(app)  # Allows CodePen to send data to Python
 
-DATA_FILE = "responses.json"
+BIN_ID = "6a82b67df5f4af5e291f599b"
+API_KEY = "$2a$10$40VNzo3BDca1JIT0uhII8.PlQuXDIYiylTGGUikm3G6mgqTdnAK8O"
 
-def read_responses():
-    if not os.path.exists(DATA_FILE):
+HEADERS = {
+    "Content-Type": "application/json",
+    "X-Master-Key": API_KEY
+}
+
+def get_cloud_responses():
+    try:
+        url = f"https://api.jsonbin.io/v3/b/{BIN_ID}/latest"
+        res = requests.get(url, headers=HEADERS)
+        if res.status_code == 200:
+            return res.json().get("record", [])
         return []
-    with open(DATA_FILE, "r") as f:
-        try:
-            return json.load(f)
-        except:
-            return []
+    except Exception as e:
+        print("Error reading from JSONBin:", e)
+        return []
 
 @app.route('/submit', methods=['POST'])
 def submit():
     data = request.json or {}
-    responses = read_responses()
+    responses = get_cloud_responses()
     
     responses.append({
         "name": data.get("name", "Anonymous"),
         "favorite_part": data.get("favorite_part", "")
     })
     
-    with open(DATA_FILE, "w") as f:
-        json.dump(responses, f, indent=2)
-        
+    # Save updated array back to JSONBin cloud
+    url = f"https://api.jsonbin.io/v3/b/{BIN_ID}"
+    requests.put(url, json=responses, headers=HEADERS)
+    
     return jsonify({"status": "success"}), 200
 
 @app.route('/responses', methods=['GET'])
 def get_responses():
-    return jsonify(read_responses())
+    return jsonify(get_cloud_responses())
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5000)
